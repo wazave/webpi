@@ -1,86 +1,87 @@
 package main
 
 import (
-	"net/http"
 	"fmt"
-	"time"
 	"log"
+	"net/http"
+	"time"
 
-    "github.com/gorilla/context"
-    "github.com/justinas/alice"
-    "github.com/julienschmidt/httprouter"
 	"database/sql"
 	"encoding/json"
+
+	"github.com/gorilla/context"
+	"github.com/julienschmidt/httprouter"
+	"github.com/justinas/alice"
 )
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
-    fmt.Fprintf(w, "Welcome!")
+	fmt.Fprintf(w, "Welcome!")
 }
 
 func aboutHandler(w http.ResponseWriter, r *http.Request) {
-    fmt.Fprintf(w, "you are on the about page")
+	fmt.Fprintf(w, "you are on the about page")
 }
 
 func loggingHandler(next http.Handler) http.Handler {
-    fn := func (w http.ResponseWriter, r *http.Request)  {
-        t1 := time.Now()
-        next.ServeHTTP(w,r)
-        t2 := time.Now()
-        log.Printf("[%s] %q %v\n", r.Method, r.URL.String(), t2.Sub(t1))
-    }
-    return http.HandlerFunc(fn)
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		t1 := time.Now()
+		next.ServeHTTP(w, r)
+		t2 := time.Now()
+		log.Printf("[%s] %q %v\n", r.Method, r.URL.String(), t2.Sub(t1))
+	}
+	return http.HandlerFunc(fn)
 }
 
 func recoverHandler(next http.Handler) http.Handler {
-    fn := func (w http.ResponseWriter, r *http.Request)  {
-        defer func() {
-            if err := recover(); err != nil {
-                log.Printf("panic: %+v", err)
-                http.Error(w, http.StatusText(500), 500)
-            }
-        }()
-        next.ServeHTTP(w,r)
-    }
-    return http.HandlerFunc(fn)
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Printf("panic: %+v", err)
+				http.Error(w, http.StatusText(500), 500)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	}
+	return http.HandlerFunc(fn)
 }
 
 type router struct {
-    *httprouter.Router
+	*httprouter.Router
 }
 
 type appContext struct {
-    db *sql.DB
+	db *sql.DB
 }
 
 func (c *appContext) teaHandler(w http.ResponseWriter, r *http.Request) {
-    params := context.Get(r, "params").(httprouter.Params)
-    log.Println(params.ByName("id"))
-    json.NewEncoder(w).Encode(nil)
+	params := context.Get(r, "params").(httprouter.Params)
+	log.Println(params.ByName("id"))
+	json.NewEncoder(w).Encode(nil)
 }
 
 func newRouter() *router {
-    return &router{httprouter.New()}
+	return &router{httprouter.New()}
 }
 
 func wrapHandler(h http.Handler) httprouter.Handle {
-    return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params){
-        context.Set(r, "params", ps)
-        h.ServeHTTP(w, r)
-    }
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		context.Set(r, "params", ps)
+		h.ServeHTTP(w, r)
+	}
 }
 
 func (r *router) get(path string, handler http.Handler) {
-    r.GET(path, wrapHandler(handler))
+	r.GET(path, wrapHandler(handler))
 }
 
-func main()  {
-    appC := appContext{nil}
-    commonHandlers := alice.New(context.ClearHandler, loggingHandler, recoverHandler)
-    router :=newRouter()
-    router.get("/about", commonHandlers.ThenFunc(aboutHandler))   
-    router.get("/", commonHandlers.ThenFunc(indexHandler))
-    router.get("/teas/:id", commonHandlers.ThenFunc(appC.teaHandler))
-    http.ListenAndServe(":8080", router)
+func main() {
+	appC := appContext{nil}
+	commonHandlers := alice.New(context.ClearHandler, loggingHandler, recoverHandler)
+	router := newRouter()
+	router.get("/about", commonHandlers.ThenFunc(aboutHandler))
+	router.get("/", commonHandlers.ThenFunc(indexHandler))
+	router.get("/teas/:id", commonHandlers.ThenFunc(appC.teaHandler))
+	http.ListenAndServe(":8080", router)
 }
 
 // package main
