@@ -29,6 +29,17 @@ type TeaRepo struct {
 	coll *mgo.Collection
 }
 
+type Errors struct {
+	Errors []*Error `json:"errors"`
+}
+
+type Error struct {
+	Id     string `json:"id"`
+	Status int    `json:"status"`
+	Title  string `json:"title"`
+	Detail string `json:"detail"`
+}
+
 func (r *TeaRepo) Find(id string) (TeaResource, error) {
 	result := TeaResource{}
 	err := r.coll.FindId(bson.ObjectIdHex(id)).One(&result.Data)
@@ -64,7 +75,11 @@ func recoverHandler(next http.Handler) http.Handler {
 		defer func() {
 			if err := recover(); err != nil {
 				log.Printf("panic: %+v", err)
-				http.Error(w, http.StatusText(500), 500)
+				// http.Error(w, http.StatusText(500), 500)
+				jsonErr := &Error{"internal_server_error", 500, "Internal Server Error", "something went wrong."}
+				w.Header().Set("Content-Type", "application/vnd.api+json")
+				w.WriteHeader(jsonErr.Status)
+				json.NewEncoder(w).Encode(Errors{[]*Error{jsonErr}})
 			}
 		}()
 		next.ServeHTTP(w, r)
